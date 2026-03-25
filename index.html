@@ -1,0 +1,818 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Poker Night</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:           #080e0a;
+      --felt:         #0f1f13;
+      --surface:      #162019;
+      --surface2:     #1d2b21;
+      --border:       #2a3d2e;
+      --green:        #2a7a47;
+      --green-light:  #38a05e;
+      --gold:         #c9a030;
+      --gold-light:   #e8c05a;
+      --red:          #b83028;
+      --red-light:    #d94030;
+      --text:         #e5ede7;
+      --text-muted:   #6a9070;
+      --radius:       12px;
+    }
+
+    body {
+      font-family: -apple-system, 'Segoe UI', system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      max-width: 580px;
+      margin: 0 auto;
+      padding: 16px 16px 40px;
+    }
+
+    h1 {
+      font-size: 2rem;
+      font-weight: 800;
+      color: var(--gold-light);
+      text-align: center;
+      letter-spacing: 0.04em;
+    }
+    .subtitle {
+      text-align: center;
+      color: var(--text-muted);
+      margin-top: 4px;
+      margin-bottom: 24px;
+      font-size: 0.9rem;
+    }
+    h2 {
+      font-size: 0.72rem;
+      font-weight: 700;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      margin-bottom: 12px;
+    }
+
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 16px;
+      margin-bottom: 14px;
+    }
+
+    input[type="text"], input[type="number"] {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--text);
+      padding: 10px 12px;
+      font-size: 1rem;
+      outline: none;
+      width: 100%;
+      -moz-appearance: textfield;
+    }
+    input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; }
+    input:focus { border-color: var(--green); }
+
+    button {
+      border: none;
+      border-radius: 8px;
+      padding: 10px 16px;
+      font-size: 0.95rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: filter 0.12s, transform 0.1s;
+      white-space: nowrap;
+    }
+    button:active:not(:disabled) { transform: scale(0.97); }
+    button:disabled { opacity: 0.35; cursor: not-allowed; }
+
+    .btn-green  { background: var(--green);  color: #fff; }
+    .btn-gold   { background: var(--gold);   color: #1a0e00; }
+    .btn-red    { background: var(--red);    color: #fff; }
+    .btn-ghost  { background: transparent; border: 1px solid var(--border); color: var(--text-muted); }
+    .btn-green:hover:not(:disabled)  { filter: brightness(1.15); }
+    .btn-gold:hover:not(:disabled)   { filter: brightness(1.12); }
+    .btn-red:hover:not(:disabled)    { filter: brightness(1.15); }
+    .btn-ghost:hover:not(:disabled)  { border-color: var(--text-muted); color: var(--text); }
+    .btn-large { width: 100%; padding: 14px; font-size: 1.05rem; }
+
+    /* View toggle */
+    .view { display: none; }
+    .view.active { display: block; }
+
+    /* App header */
+    .app-header { text-align: center; margin-bottom: 20px; padding-top: 6px; }
+
+    /* ===== SETUP ===== */
+    .add-row {
+      display: grid;
+      grid-template-columns: 1fr 88px auto;
+      gap: 8px;
+      align-items: center;
+      margin-bottom: 10px;
+    }
+    .player-setup-item {
+      display: flex;
+      align-items: center;
+      padding: 9px 0;
+      border-top: 1px solid var(--border);
+      gap: 8px;
+    }
+    .player-setup-name { flex: 1; font-weight: 600; font-size: 0.95rem; }
+    .player-setup-buyin { color: var(--gold); font-size: 0.9rem; }
+    .player-setup-item button { padding: 4px 10px; font-size: 0.8rem; }
+
+    .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .form-field label {
+      display: block;
+      font-size: 0.72rem;
+      font-weight: 700;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      margin-bottom: 5px;
+    }
+    .empty-state { color: var(--text-muted); font-size: 0.88rem; text-align: center; padding: 12px 0; }
+
+    /* ===== GAME — BLIND DISPLAY ===== */
+    .blind-display {
+      background: linear-gradient(145deg, #132018, #0b160e);
+      border: 2px solid var(--gold);
+      border-radius: 16px;
+      padding: 22px 20px 18px;
+      text-align: center;
+      margin-bottom: 14px;
+      transition: border-color 0.5s;
+    }
+    .blind-display.flash { border-color: var(--gold-light); }
+
+    .blind-level-label {
+      font-size: 0.72rem;
+      font-weight: 700;
+      color: var(--gold);
+      text-transform: uppercase;
+      letter-spacing: 0.15em;
+      margin-bottom: 6px;
+    }
+    .blind-values {
+      font-size: 2.6rem;
+      font-weight: 800;
+      color: var(--gold-light);
+      letter-spacing: 0.02em;
+      line-height: 1.1;
+    }
+    .blind-sub {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      margin-bottom: 16px;
+      margin-top: 2px;
+    }
+
+    .timer-display {
+      font-size: 3.2rem;
+      font-weight: 700;
+      color: var(--text);
+      font-variant-numeric: tabular-nums;
+      line-height: 1;
+      transition: color 0.4s;
+    }
+    .timer-display.warning  { color: #d4873a; }
+    .timer-display.critical { color: var(--red-light); }
+    .timer-paused { color: var(--text-muted) !important; }
+
+    .timer-label {
+      font-size: 0.72rem;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      margin: 3px 0 14px;
+    }
+    .timer-controls { display: flex; gap: 8px; justify-content: center; }
+    .timer-controls button { padding: 7px 14px; font-size: 0.85rem; }
+    .next-preview {
+      margin-top: 12px;
+      font-size: 0.8rem;
+      color: var(--text-muted);
+    }
+    .next-preview span { color: var(--text); font-weight: 600; }
+
+    /* ===== BLIND SCHEDULE ===== */
+    .schedule-toggle {
+      background: none;
+      border: none;
+      color: var(--text-muted);
+      font-size: 0.85rem;
+      font-weight: 600;
+      cursor: pointer;
+      padding: 0;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      letter-spacing: 0.05em;
+    }
+    .schedule-toggle:hover { color: var(--text); }
+    .schedule-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.88rem;
+      margin-top: 12px;
+    }
+    .schedule-table th {
+      text-align: left;
+      padding: 5px 8px;
+      color: var(--text-muted);
+      font-size: 0.72rem;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      border-bottom: 1px solid var(--border);
+    }
+    .schedule-table td { padding: 8px 8px; border-bottom: 1px solid var(--border); }
+    .schedule-table tr:last-child td { border-bottom: none; }
+    .schedule-table tr.row-current td { color: var(--gold-light); font-weight: 700; }
+    .schedule-table tr.row-past td { color: var(--text-muted); opacity: 0.5; }
+
+    /* ===== POT ===== */
+    .pot-display {
+      background: var(--surface2);
+      border-radius: 10px;
+      padding: 12px;
+      text-align: center;
+      margin-bottom: 14px;
+    }
+    .pot-label { font-size: 0.72rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.1em; }
+    .pot-value { font-size: 2rem; font-weight: 700; color: var(--gold-light); }
+
+    /* ===== PLAYERS ===== */
+    .player-list { display: flex; flex-direction: column; gap: 8px; }
+    .player-card {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 12px 14px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 8px;
+    }
+    .player-card.out { opacity: 0.4; border-style: dashed; }
+    .player-info { flex: 1; min-width: 0; }
+    .player-name { font-weight: 600; font-size: 0.98rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .player-invested { font-size: 0.82rem; color: var(--gold); margin-top: 2px; }
+    .player-status { font-size: 0.72rem; color: var(--red-light); font-weight: 700; margin-top: 2px; }
+    .player-actions { display: flex; gap: 6px; flex-shrink: 0; }
+    .player-actions button { padding: 6px 10px; font-size: 0.8rem; }
+
+    /* ===== END VIEW ===== */
+    .end-table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+    .end-table th {
+      text-align: left;
+      padding: 6px 8px;
+      color: var(--text-muted);
+      font-size: 0.72rem;
+      text-transform: uppercase;
+      letter-spacing: 0.07em;
+      border-bottom: 1px solid var(--border);
+    }
+    .end-table td { padding: 10px 8px; border-bottom: 1px solid var(--border); }
+    .end-table tr:last-child td { border-bottom: none; }
+    .badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 20px;
+      font-size: 0.72rem;
+      font-weight: 700;
+    }
+    .badge-in  { background: #132a1c; color: var(--green-light); }
+    .badge-out { background: #2a1212; color: var(--red-light); }
+
+    /* ===== MODAL ===== */
+    .modal-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.75);
+      z-index: 100;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+    }
+    .modal-overlay.open { display: flex; }
+    .modal {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 24px;
+      width: min(360px, 100%);
+    }
+    .modal h3 { margin-bottom: 16px; font-size: 1.1rem; }
+    .modal .form-field { margin-bottom: 16px; }
+    .modal-actions { display: flex; gap: 8px; }
+    .modal-actions button { flex: 1; }
+
+    .mt-12 { margin-top: 12px; }
+    .mt-16 { margin-top: 16px; }
+  </style>
+</head>
+<body>
+
+  <!-- ============================
+       SETUP VIEW
+       ============================ -->
+  <div id="view-setup" class="view active">
+    <div class="app-header">
+      <h1>Poker Night</h1>
+      <p class="subtitle">Set up your game</p>
+    </div>
+
+    <div class="card">
+      <h2>Players</h2>
+      <div class="add-row">
+        <input id="setup-name" type="text" placeholder="Player name" autocomplete="off"/>
+        <input id="setup-buyin" type="number" placeholder="Buy-in" min="1" value="20"/>
+        <button class="btn-green" onclick="addSetupPlayer()">Add</button>
+      </div>
+      <div id="setup-player-list">
+        <p class="empty-state">Add at least 2 players to start</p>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Blinds &amp; Timer</h2>
+      <div class="form-grid">
+        <div class="form-field">
+          <label>Small Blind</label>
+          <input id="setup-sb" type="number" value="25" min="1"/>
+        </div>
+        <div class="form-field">
+          <label>Big Blind</label>
+          <input id="setup-bb" type="number" value="50" min="1"/>
+        </div>
+        <div class="form-field">
+          <label>Level Duration (mins)</label>
+          <input id="setup-duration" type="number" value="20" min="1"/>
+        </div>
+        <div class="form-field">
+          <label>Currency Symbol</label>
+          <input id="setup-currency" type="text" value="£" maxlength="3"/>
+        </div>
+      </div>
+    </div>
+
+    <button id="setup-start-btn" class="btn-gold btn-large" onclick="startGame()" disabled>
+      Start Game
+    </button>
+  </div>
+
+  <!-- ============================
+       GAME VIEW
+       ============================ -->
+  <div id="view-game" class="view">
+    <div class="app-header">
+      <h1>Poker Night</h1>
+    </div>
+
+    <div class="blind-display" id="blind-display">
+      <div class="blind-level-label" id="game-level-label">Level 1</div>
+      <div class="blind-values" id="game-blinds">25 / 50</div>
+      <div class="blind-sub">Small Blind / Big Blind</div>
+      <div class="timer-display" id="game-timer">20:00</div>
+      <div class="timer-label" id="game-timer-label">until next level</div>
+      <div class="timer-controls">
+        <button class="btn-ghost" id="pause-btn" onclick="togglePause()">⏸ Pause</button>
+        <button class="btn-ghost" onclick="skipLevel()">Next Level →</button>
+      </div>
+      <div class="next-preview" id="game-next-preview">
+        Next level: <span>50 / 100</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <button class="schedule-toggle" onclick="toggleSchedule()">
+        <span id="schedule-arrow">▶</span> Blind Schedule
+      </button>
+      <div id="schedule-wrap" style="display:none">
+        <table class="schedule-table">
+          <thead>
+            <tr>
+              <th>Level</th>
+              <th>Small Blind</th>
+              <th>Big Blind</th>
+              <th>Starts</th>
+            </tr>
+          </thead>
+          <tbody id="schedule-body"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="pot-display">
+      <div class="pot-label">Total Pot</div>
+      <div class="pot-value" id="game-pot">£0</div>
+    </div>
+
+    <div class="card">
+      <h2>Players</h2>
+      <div id="game-player-list" class="player-list"></div>
+    </div>
+
+    <button class="btn-red btn-large mt-16" onclick="confirmEndGame()">End Game</button>
+  </div>
+
+  <!-- ============================
+       END VIEW
+       ============================ -->
+  <div id="view-end" class="view">
+    <div class="app-header">
+      <h1>Game Over</h1>
+      <p class="subtitle" id="end-subtitle">Thanks for playing!</p>
+    </div>
+
+    <div class="pot-display">
+      <div class="pot-label">Total Pot</div>
+      <div class="pot-value" id="end-pot">£0</div>
+    </div>
+
+    <div class="card">
+      <h2>Buy-in Summary</h2>
+      <table class="end-table">
+        <thead>
+          <tr>
+            <th>Player</th>
+            <th>Total In</th>
+            <th>Buy-ins</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody id="end-body"></tbody>
+      </table>
+    </div>
+
+    <div class="card">
+      <h2>Final Blinds</h2>
+      <p id="end-blind-info" style="font-size:0.95rem"></p>
+    </div>
+
+    <button class="btn-gold btn-large mt-16" onclick="newGame()">New Game</button>
+  </div>
+
+  <!-- ============================
+       REBUY MODAL
+       ============================ -->
+  <div class="modal-overlay" id="rebuy-overlay" onclick="handleOverlayClick(event)">
+    <div class="modal">
+      <h3 id="rebuy-title">Rebuy</h3>
+      <div class="form-field">
+        <label>Amount</label>
+        <input id="rebuy-amount" type="number" min="1"/>
+      </div>
+      <div class="modal-actions">
+        <button class="btn-ghost" onclick="closeModal()">Cancel</button>
+        <button class="btn-gold" onclick="confirmRebuy()">Confirm</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // ── State ──────────────────────────────────────────────────────────
+    let setupPlayers = [];  // { id, name, buyin }
+
+    const g = {
+      players: [],          // { id, name, buyins[], eliminated }
+      currency: '£',
+      startingSB: 25,
+      startingBB: 50,
+      levelDuration: 20,    // minutes
+      currentLevel: 0,
+      secondsLeft: 0,
+      paused: false,
+      timerInterval: null,
+      rebuyTarget: null,
+    };
+
+    // ── Setup ──────────────────────────────────────────────────────────
+    document.getElementById('setup-name').addEventListener('keydown', e => {
+      if (e.key === 'Enter') addSetupPlayer();
+    });
+
+    function addSetupPlayer() {
+      const nameEl   = document.getElementById('setup-name');
+      const buyinEl  = document.getElementById('setup-buyin');
+      const name     = nameEl.value.trim();
+      const buyin    = parseFloat(buyinEl.value);
+      if (!name || !buyin || buyin <= 0) return;
+      setupPlayers.push({ id: Date.now() + Math.random(), name, buyin });
+      nameEl.value = '';
+      nameEl.focus();
+      renderSetupPlayers();
+    }
+
+    function removeSetupPlayer(id) {
+      setupPlayers = setupPlayers.filter(p => p.id !== id);
+      renderSetupPlayers();
+    }
+
+    function renderSetupPlayers() {
+      const cur = document.getElementById('setup-currency').value || '£';
+      const el  = document.getElementById('setup-player-list');
+      if (!setupPlayers.length) {
+        el.innerHTML = '<p class="empty-state">Add at least 2 players to start</p>';
+      } else {
+        el.innerHTML = setupPlayers.map(p => `
+          <div class="player-setup-item">
+            <span class="player-setup-name">${esc(p.name)}</span>
+            <span class="player-setup-buyin">${cur}${p.buyin}</span>
+            <button class="btn-ghost" onclick="removeSetupPlayer(${p.id})">✕</button>
+          </div>
+        `).join('');
+      }
+      document.getElementById('setup-start-btn').disabled = setupPlayers.length < 2;
+    }
+
+    function startGame() {
+      if (setupPlayers.length < 2) return;
+
+      g.players = setupPlayers.map(p => ({
+        id: p.id,
+        name: p.name,
+        buyins: [p.buyin],
+        eliminated: false,
+      }));
+      g.currency       = document.getElementById('setup-currency').value || '£';
+      g.startingSB     = parseFloat(document.getElementById('setup-sb').value)       || 25;
+      g.startingBB     = parseFloat(document.getElementById('setup-bb').value)       || 50;
+      g.levelDuration  = parseInt(document.getElementById('setup-duration').value)   || 20;
+      g.currentLevel   = 0;
+      g.secondsLeft    = g.levelDuration * 60;
+      g.paused         = false;
+
+      showView('game');
+      renderBlindDisplay();
+      renderBlindSchedule();
+      renderGamePlayers();
+      renderPot();
+      startTimer();
+    }
+
+    // ── Timer ──────────────────────────────────────────────────────────
+    function startTimer() {
+      clearInterval(g.timerInterval);
+      g.timerInterval = setInterval(tick, 1000);
+    }
+
+    function tick() {
+      if (g.paused) return;
+      g.secondsLeft--;
+      if (g.secondsLeft <= 0) {
+        advanceLevel();
+        return;
+      }
+      updateTimerEl();
+    }
+
+    function advanceLevel() {
+      g.currentLevel++;
+      g.secondsLeft = g.levelDuration * 60;
+      renderBlindDisplay();
+      renderBlindSchedule();
+      updateTimerEl();
+      // Flash border
+      const bd = document.getElementById('blind-display');
+      bd.classList.add('flash');
+      setTimeout(() => bd.classList.remove('flash'), 1500);
+    }
+
+    function togglePause() {
+      g.paused = !g.paused;
+      const btn = document.getElementById('pause-btn');
+      btn.textContent = g.paused ? '▶ Resume' : '⏸ Pause';
+      document.getElementById('game-timer').classList.toggle('timer-paused', g.paused);
+      document.getElementById('game-timer-label').textContent =
+        g.paused ? 'paused' : 'until next level';
+    }
+
+    function skipLevel() {
+      if (!confirm('Skip to the next blind level?')) return;
+      advanceLevel();
+    }
+
+    function updateTimerEl() {
+      const m   = Math.floor(g.secondsLeft / 60);
+      const s   = g.secondsLeft % 60;
+      const el  = document.getElementById('game-timer');
+      el.textContent = `${pad(m)}:${pad(s)}`;
+      el.className   = 'timer-display';
+      if (g.paused)                   el.classList.add('timer-paused');
+      else if (g.secondsLeft <= 60)   el.classList.add('critical');
+      else if (g.secondsLeft <= 180)  el.classList.add('warning');
+    }
+
+    // ── Blinds ─────────────────────────────────────────────────────────
+    function blindsAt(level) {
+      const m = Math.pow(2, level);
+      return {
+        sb: Math.round(g.startingSB * m),
+        bb: Math.round(g.startingBB * m),
+      };
+    }
+
+    function renderBlindDisplay() {
+      const cur  = blindsAt(g.currentLevel);
+      const next = blindsAt(g.currentLevel + 1);
+      document.getElementById('game-level-label').textContent  = `Level ${g.currentLevel + 1}`;
+      document.getElementById('game-blinds').textContent       = `${cur.sb} / ${cur.bb}`;
+      document.getElementById('game-next-preview').innerHTML   =
+        `Next level: <span>${next.sb} / ${next.bb}</span>`;
+    }
+
+    function renderBlindSchedule() {
+      const tbody = document.getElementById('schedule-body');
+      const rows  = [];
+      for (let i = 0; i < 10; i++) {
+        const { sb, bb } = blindsAt(i);
+        const startMin   = i * g.levelDuration;
+        const h          = Math.floor(startMin / 60);
+        const m          = startMin % 60;
+        const timeStr    = h > 0 ? `${h}h ${m > 0 ? m + 'm' : ''}` : `${m}m`;
+        const rowClass   = i === g.currentLevel ? 'row-current'
+                         : i < g.currentLevel   ? 'row-past'
+                         : '';
+        rows.push(`
+          <tr class="${rowClass}">
+            <td>${i + 1}${i === g.currentLevel ? ' ◀' : ''}</td>
+            <td>${sb}</td>
+            <td>${bb}</td>
+            <td>${timeStr}</td>
+          </tr>
+        `);
+      }
+      tbody.innerHTML = rows.join('');
+    }
+
+    function toggleSchedule() {
+      const wrap  = document.getElementById('schedule-wrap');
+      const arrow = document.getElementById('schedule-arrow');
+      const open  = wrap.style.display !== 'none';
+      wrap.style.display  = open ? 'none' : 'block';
+      arrow.textContent   = open ? '▶' : '▼';
+    }
+
+    // ── Game Players ───────────────────────────────────────────────────
+    function renderGamePlayers() {
+      const el = document.getElementById('game-player-list');
+      el.innerHTML = g.players.map(p => {
+        const total    = p.buyins.reduce((a, b) => a + b, 0);
+        const countStr = p.buyins.length > 1
+          ? `${g.currency}${total} · ${p.buyins.length} buy-ins`
+          : `${g.currency}${total}`;
+        return `
+          <div class="player-card ${p.eliminated ? 'out' : ''}">
+            <div class="player-info">
+              <div class="player-name">${esc(p.name)}</div>
+              <div class="player-invested">${countStr}</div>
+              ${p.eliminated ? '<div class="player-status">ELIMINATED</div>' : ''}
+            </div>
+            <div class="player-actions">
+              ${p.eliminated
+                ? `<button class="btn-ghost" onclick="reinstatePlayer(${p.id})">Undo</button>`
+                : `<button class="btn-gold" onclick="openRebuy(${p.id})">Rebuy</button>
+                   <button class="btn-red"  onclick="bustPlayer(${p.id})">Bust</button>`
+              }
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function renderPot() {
+      const total = g.players.reduce((s, p) => s + p.buyins.reduce((a, b) => a + b, 0), 0);
+      document.getElementById('game-pot').textContent = `${g.currency}${total}`;
+    }
+
+    function bustPlayer(id) {
+      const p = g.players.find(p => p.id === id);
+      if (!p || !confirm(`Mark ${p.name} as eliminated?`)) return;
+      p.eliminated = true;
+      renderGamePlayers();
+    }
+
+    function reinstatePlayer(id) {
+      const p = g.players.find(p => p.id === id);
+      if (p) { p.eliminated = false; renderGamePlayers(); }
+    }
+
+    // ── Rebuy Modal ────────────────────────────────────────────────────
+    function openRebuy(id) {
+      const p = g.players.find(p => p.id === id);
+      if (!p) return;
+      g.rebuyTarget = id;
+      document.getElementById('rebuy-title').textContent   = `Rebuy — ${p.name}`;
+      document.getElementById('rebuy-amount').value        = p.buyins[0];
+      document.getElementById('rebuy-overlay').classList.add('open');
+      setTimeout(() => document.getElementById('rebuy-amount').select(), 60);
+    }
+
+    function confirmRebuy() {
+      const amount = parseFloat(document.getElementById('rebuy-amount').value);
+      if (!amount || amount <= 0) return;
+      const p = g.players.find(p => p.id === g.rebuyTarget);
+      if (p) {
+        p.buyins.push(amount);
+        renderGamePlayers();
+        renderPot();
+      }
+      closeModal();
+    }
+
+    function closeModal() {
+      document.getElementById('rebuy-overlay').classList.remove('open');
+      g.rebuyTarget = null;
+    }
+
+    function handleOverlayClick(e) {
+      if (e.target === e.currentTarget) closeModal();
+    }
+
+    // Confirm rebuy on Enter
+    document.getElementById('rebuy-amount').addEventListener('keydown', e => {
+      if (e.key === 'Enter') confirmRebuy();
+    });
+
+    // ── End Game ───────────────────────────────────────────────────────
+    function confirmEndGame() {
+      if (!confirm('End the game and show the summary?')) return;
+      clearInterval(g.timerInterval);
+      showView('end');
+      renderEndSummary();
+    }
+
+    function renderEndSummary() {
+      const total     = g.players.reduce((s, p) => s + p.buyins.reduce((a, b) => a + b, 0), 0);
+      const { sb, bb} = blindsAt(g.currentLevel);
+      const elapsed   = g.currentLevel * g.levelDuration;
+      const h         = Math.floor(elapsed / 60);
+      const m         = elapsed % 60;
+      const timeStr   = h > 0 ? `${h}h ${m > 0 ? m + 'm' : ''}` : `${m}m`;
+
+      document.getElementById('end-pot').textContent     = `${g.currency}${total}`;
+      document.getElementById('end-subtitle').textContent =
+        `${g.players.filter(p => !p.eliminated).length} players still in`;
+      document.getElementById('end-blind-info').textContent =
+        `Level ${g.currentLevel + 1} — ${sb} / ${bb}  (after ${timeStr} of play)`;
+
+      const sorted = [...g.players].sort((a, b) => {
+        if (a.eliminated !== b.eliminated) return a.eliminated ? 1 : -1;
+        return b.buyins.reduce((x,y)=>x+y,0) - a.buyins.reduce((x,y)=>x+y,0);
+      });
+
+      document.getElementById('end-body').innerHTML = sorted.map(p => {
+        const total  = p.buyins.reduce((a, b) => a + b, 0);
+        const badge  = p.eliminated
+          ? '<span class="badge badge-out">Out</span>'
+          : '<span class="badge badge-in">Playing</span>';
+        return `
+          <tr>
+            <td>${esc(p.name)}</td>
+            <td>${g.currency}${total}</td>
+            <td>${p.buyins.length}</td>
+            <td>${badge}</td>
+          </tr>
+        `;
+      }).join('');
+    }
+
+    function newGame() {
+      if (!confirm('Start a new game? This will reset everything.')) return;
+      clearInterval(g.timerInterval);
+      setupPlayers = [];
+      Object.assign(g, {
+        players: [], currency: '£', startingSB: 25, startingBB: 50,
+        levelDuration: 20, currentLevel: 0, secondsLeft: 0,
+        paused: false, timerInterval: null, rebuyTarget: null,
+      });
+      renderSetupPlayers();
+      showView('setup');
+    }
+
+    // ── Utilities ──────────────────────────────────────────────────────
+    function showView(name) {
+      document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+      document.getElementById(`view-${name}`).classList.add('active');
+      window.scrollTo(0, 0);
+    }
+
+    function esc(str) {
+      return String(str)
+        .replace(/&/g,'&amp;').replace(/</g,'&lt;')
+        .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    }
+
+    function pad(n) { return String(n).padStart(2, '0'); }
+  </script>
+</body>
+</html>
