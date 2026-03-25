@@ -261,6 +261,8 @@
       gap: 8px;
     }
     .player-card.out { opacity: 0.4; border-style: dashed; }
+    .player-card.cashed-out { opacity: 0.55; border-color: #2a4a6a; border-style: dashed; }
+    .player-status-cashout { font-size: 0.72rem; color: #5aa0d0; font-weight: 700; margin-top: 2px; }
     .player-info { flex: 1; min-width: 0; }
     .player-name { font-weight: 600; font-size: 0.98rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .player-invested { font-size: 0.82rem; color: var(--gold); margin-top: 2px; }
@@ -315,6 +317,24 @@
     .modal-actions { display: flex; gap: 8px; }
     .modal-actions button { flex: 1; }
 
+    /* ===== CASH OUT LOG ===== */
+    .cashout-log { display: flex; flex-direction: column; gap: 6px; }
+    .cashout-log-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 0.88rem;
+      padding: 6px 0;
+      border-bottom: 1px solid var(--border);
+    }
+    .cashout-log-item:last-child { border-bottom: none; }
+    .cashout-log-name { font-weight: 600; }
+    .cashout-log-detail { color: var(--text-muted); font-size: 0.8rem; }
+    .cashout-log-amount { color: #5aa0d0; font-weight: 600; }
+
+    /* ===== POT DETAIL ===== */
+    .pot-detail { font-size: 0.8rem; color: var(--text-muted); margin-top: 2px; }
+
     .mt-12 { margin-top: 12px; }
     .mt-16 { margin-top: 16px; }
   </style>
@@ -334,7 +354,7 @@
       <h2>Players</h2>
       <div class="add-row">
         <input id="setup-name" type="text" placeholder="Player name" autocomplete="off"/>
-        <input id="setup-buyin" type="number" placeholder="Buy-in" min="1" value="20"/>
+        <input id="setup-buyin" type="number" placeholder="Buy-in" min="0.01" step="0.01" value="20"/>
         <button class="btn-green" onclick="addSetupPlayer()">Add</button>
       </div>
       <div id="setup-player-list">
@@ -347,11 +367,11 @@
       <div class="form-grid">
         <div class="form-field">
           <label>Small Blind</label>
-          <input id="setup-sb" type="number" value="25" min="1"/>
+          <input id="setup-sb" type="number" value="25" min="0.01" step="0.01"/>
         </div>
         <div class="form-field">
           <label>Big Blind</label>
-          <input id="setup-bb" type="number" value="50" min="1"/>
+          <input id="setup-bb" type="number" value="50" min="0.01" step="0.01"/>
         </div>
         <div class="form-field">
           <label>Level Duration (mins)</label>
@@ -414,6 +434,12 @@
     <div class="pot-display">
       <div class="pot-label">Total Pot</div>
       <div class="pot-value" id="game-pot">£0</div>
+      <div class="pot-detail" id="game-pot-detail"></div>
+    </div>
+
+    <div class="card" id="cashout-log-card" style="display:none">
+      <h2>Cash Outs</h2>
+      <div id="cashout-log" class="cashout-log"></div>
     </div>
 
     <div class="card">
@@ -445,7 +471,7 @@
           <tr>
             <th>Player</th>
             <th>Total In</th>
-            <th>Buy-ins</th>
+            <th>Cashed Out</th>
             <th>Status</th>
           </tr>
         </thead>
@@ -462,6 +488,23 @@
   </div>
 
   <!-- ============================
+       CASH OUT MODAL
+       ============================ -->
+  <div class="modal-overlay" id="cashout-overlay" onclick="handleCashoutOverlayClick(event)">
+    <div class="modal">
+      <h3 id="cashout-title">Cash Out</h3>
+      <div class="form-field">
+        <label>Leaving with</label>
+        <input id="cashout-amount" type="number" min="0" step="0.01"/>
+      </div>
+      <div class="modal-actions">
+        <button class="btn-ghost" onclick="closeCashoutModal()">Cancel</button>
+        <button class="btn-gold" onclick="confirmCashOut()">Confirm</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================
        REBUY MODAL
        ============================ -->
   <div class="modal-overlay" id="rebuy-overlay" onclick="handleOverlayClick(event)">
@@ -469,7 +512,7 @@
       <h3 id="rebuy-title">Rebuy</h3>
       <div class="form-field">
         <label>Amount</label>
-        <input id="rebuy-amount" type="number" min="1"/>
+        <input id="rebuy-amount" type="number" min="0.01" step="0.01"/>
       </div>
       <div class="modal-actions">
         <button class="btn-ghost" onclick="closeModal()">Cancel</button>
@@ -483,7 +526,7 @@
     let setupPlayers = [];  // { id, name, buyin }
 
     const g = {
-      players: [],          // { id, name, buyins[], eliminated }
+      players: [],          // { id, name, buyins[], eliminated, cashedOut: null|{amount,level} }
       currency: '£',
       startingSB: 25,
       startingBB: 50,
@@ -493,6 +536,7 @@
       paused: false,
       timerInterval: null,
       rebuyTarget: null,
+      cashOutTarget: null,
     };
 
     // ── Setup ──────────────────────────────────────────────────────────
@@ -542,6 +586,7 @@
         name: p.name,
         buyins: [p.buyin],
         eliminated: false,
+        cashedOut: null,
       }));
       g.currency       = document.getElementById('setup-currency').value || '£';
       g.startingSB     = parseFloat(document.getElementById('setup-sb').value)       || 25;
@@ -668,20 +713,25 @@
       el.innerHTML = g.players.map(p => {
         const total    = p.buyins.reduce((a, b) => a + b, 0);
         const countStr = p.buyins.length > 1
-          ? `${g.currency}${total} · ${p.buyins.length} buy-ins`
-          : `${g.currency}${total}`;
+          ? `${g.currency}${fmt(total)} · ${p.buyins.length} buy-ins`
+          : `${g.currency}${fmt(total)}`;
+        const inactive = p.eliminated || p.cashedOut !== null;
+        let statusLine = '';
+        if (p.eliminated) statusLine = '<div class="player-status">ELIMINATED</div>';
+        else if (p.cashedOut) statusLine = `<div class="player-status-cashout">CASHED OUT · ${g.currency}${fmt(p.cashedOut.amount)}</div>`;
         return `
-          <div class="player-card ${p.eliminated ? 'out' : ''}">
+          <div class="player-card ${p.eliminated ? 'out' : p.cashedOut ? 'cashed-out' : ''}">
             <div class="player-info">
               <div class="player-name">${esc(p.name)}</div>
               <div class="player-invested">${countStr}</div>
-              ${p.eliminated ? '<div class="player-status">ELIMINATED</div>' : ''}
+              ${statusLine}
             </div>
             <div class="player-actions">
-              ${p.eliminated
+              ${inactive
                 ? `<button class="btn-ghost" onclick="reinstatePlayer(${p.id})">Undo</button>`
-                : `<button class="btn-gold" onclick="openRebuy(${p.id})">Rebuy</button>
-                   <button class="btn-red"  onclick="bustPlayer(${p.id})">Bust</button>`
+                : `<button class="btn-gold" style="padding:6px 8px;font-size:0.78rem" onclick="openRebuy(${p.id})">Rebuy</button>
+                   <button class="btn-ghost" style="padding:6px 8px;font-size:0.78rem;color:#5aa0d0;border-color:#2a4a6a" onclick="openCashOut(${p.id})">Cash Out</button>
+                   <button class="btn-red" style="padding:6px 8px;font-size:0.78rem" onclick="bustPlayer(${p.id})">Bust</button>`
               }
             </div>
           </div>
@@ -690,8 +740,34 @@
     }
 
     function renderPot() {
-      const total = g.players.reduce((s, p) => s + p.buyins.reduce((a, b) => a + b, 0), 0);
-      document.getElementById('game-pot').textContent = `${g.currency}${total}`;
+      const totalIn    = g.players.reduce((s, p) => s + p.buyins.reduce((a, b) => a + b, 0), 0);
+      const cashedOut  = g.players.reduce((s, p) => s + (p.cashedOut ? p.cashedOut.amount : 0), 0);
+      const inPlay     = totalIn - cashedOut;
+      document.getElementById('game-pot').textContent = `${g.currency}${fmt(totalIn)}`;
+      const detail = document.getElementById('game-pot-detail');
+      detail.textContent = cashedOut > 0 ? `${g.currency}${fmt(inPlay)} remaining in play` : '';
+    }
+
+    function renderCashOutLog() {
+      const cashouts = g.players.filter(p => p.cashedOut !== null);
+      const card     = document.getElementById('cashout-log-card');
+      const log      = document.getElementById('cashout-log');
+      if (!cashouts.length) { card.style.display = 'none'; return; }
+      card.style.display = 'block';
+      log.innerHTML = cashouts.map(p => {
+        const invested = p.buyins.reduce((a, b) => a + b, 0);
+        const diff     = p.cashedOut.amount - invested;
+        const sign     = diff >= 0 ? '+' : '';
+        return `
+          <div class="cashout-log-item">
+            <div>
+              <div class="cashout-log-name">${esc(p.name)}</div>
+              <div class="cashout-log-detail">Level ${p.cashedOut.level + 1} · in: ${g.currency}${fmt(invested)} · net: ${sign}${g.currency}${fmt(diff)}</div>
+            </div>
+            <div class="cashout-log-amount">${g.currency}${fmt(p.cashedOut.amount)}</div>
+          </div>
+        `;
+      }).join('');
     }
 
     function bustPlayer(id) {
@@ -703,8 +779,50 @@
 
     function reinstatePlayer(id) {
       const p = g.players.find(p => p.id === id);
-      if (p) { p.eliminated = false; renderGamePlayers(); }
+      if (!p) return;
+      p.eliminated = false;
+      p.cashedOut  = null;
+      renderGamePlayers();
+      renderPot();
+      renderCashOutLog();
     }
+
+    // ── Cash Out Modal ─────────────────────────────────────────────────
+    function openCashOut(id) {
+      const p = g.players.find(p => p.id === id);
+      if (!p) return;
+      g.cashOutTarget = id;
+      document.getElementById('cashout-title').textContent = `Cash Out — ${p.name}`;
+      document.getElementById('cashout-amount').value      = '';
+      document.getElementById('cashout-overlay').classList.add('open');
+      setTimeout(() => document.getElementById('cashout-amount').focus(), 60);
+    }
+
+    function confirmCashOut() {
+      const amount = parseFloat(document.getElementById('cashout-amount').value);
+      if (isNaN(amount) || amount < 0) return;
+      const p = g.players.find(p => p.id === g.cashOutTarget);
+      if (p) {
+        p.cashedOut = { amount, level: g.currentLevel };
+        renderGamePlayers();
+        renderPot();
+        renderCashOutLog();
+      }
+      closeCashoutModal();
+    }
+
+    function closeCashoutModal() {
+      document.getElementById('cashout-overlay').classList.remove('open');
+      g.cashOutTarget = null;
+    }
+
+    function handleCashoutOverlayClick(e) {
+      if (e.target === e.currentTarget) closeCashoutModal();
+    }
+
+    document.getElementById('cashout-amount').addEventListener('keydown', e => {
+      if (e.key === 'Enter') confirmCashOut();
+    });
 
     // ── Rebuy Modal ────────────────────────────────────────────────────
     function openRebuy(id) {
@@ -761,25 +879,33 @@
 
       document.getElementById('end-pot').textContent     = `${g.currency}${total}`;
       document.getElementById('end-subtitle').textContent =
-        `${g.players.filter(p => !p.eliminated).length} players still in`;
+        `${g.players.filter(p => !p.eliminated && !p.cashedOut).length} players still in`;
       document.getElementById('end-blind-info').textContent =
         `Level ${g.currentLevel + 1} — ${sb} / ${bb}  (after ${timeStr} of play)`;
 
-      const sorted = [...g.players].sort((a, b) => {
-        if (a.eliminated !== b.eliminated) return a.eliminated ? 1 : -1;
-        return b.buyins.reduce((x,y)=>x+y,0) - a.buyins.reduce((x,y)=>x+y,0);
-      });
+      const statusOrder = p => p.eliminated ? 2 : p.cashedOut ? 1 : 0;
+      const sorted = [...g.players].sort((a, b) => statusOrder(a) - statusOrder(b));
 
       document.getElementById('end-body').innerHTML = sorted.map(p => {
-        const total  = p.buyins.reduce((a, b) => a + b, 0);
-        const badge  = p.eliminated
-          ? '<span class="badge badge-out">Out</span>'
-          : '<span class="badge badge-in">Playing</span>';
+        const invested = p.buyins.reduce((a, b) => a + b, 0);
+        let badge, cashoutCell;
+        if (p.eliminated) {
+          badge       = '<span class="badge badge-out">Bust</span>';
+          cashoutCell = '<span style="color:var(--text-muted)">—</span>';
+        } else if (p.cashedOut) {
+          badge       = '<span class="badge" style="background:#0e1f2e;color:#5aa0d0">Cashed Out</span>';
+          const diff  = p.cashedOut.amount - invested;
+          const sign  = diff >= 0 ? '+' : '';
+          cashoutCell = `${g.currency}${fmt(p.cashedOut.amount)} <small style="color:var(--text-muted)">(${sign}${g.currency}${fmt(diff)})</small>`;
+        } else {
+          badge       = '<span class="badge badge-in">Playing</span>';
+          cashoutCell = '<span style="color:var(--text-muted)">—</span>';
+        }
         return `
           <tr>
             <td>${esc(p.name)}</td>
-            <td>${g.currency}${total}</td>
-            <td>${p.buyins.length}</td>
+            <td>${g.currency}${fmt(invested)}</td>
+            <td>${cashoutCell}</td>
             <td>${badge}</td>
           </tr>
         `;
@@ -793,7 +919,7 @@
       Object.assign(g, {
         players: [], currency: '£', startingSB: 25, startingBB: 50,
         levelDuration: 20, currentLevel: 0, secondsLeft: 0,
-        paused: false, timerInterval: null, rebuyTarget: null,
+        paused: false, timerInterval: null, rebuyTarget: null, cashOutTarget: null,
       });
       renderSetupPlayers();
       showView('setup');
@@ -813,6 +939,11 @@
     }
 
     function pad(n) { return String(n).padStart(2, '0'); }
+
+    function fmt(n) {
+      if (n === null || n === undefined) return '—';
+      return n % 1 === 0 ? String(n) : n.toFixed(2);
+    }
   </script>
 </body>
 </html>
