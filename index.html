@@ -377,10 +377,6 @@
           <label>Level Duration (mins)</label>
           <input id="setup-duration" type="number" value="20" min="1"/>
         </div>
-        <div class="form-field">
-          <label>Currency Symbol</label>
-          <input id="setup-currency" type="text" value="£" maxlength="3"/>
-        </div>
       </div>
     </div>
 
@@ -562,7 +558,7 @@
     }
 
     function renderSetupPlayers() {
-      const cur = document.getElementById('setup-currency').value || '£';
+      const cur = '$';
       const el  = document.getElementById('setup-player-list');
       if (!setupPlayers.length) {
         el.innerHTML = '<p class="empty-state">Add at least 2 players to start</p>';
@@ -588,7 +584,7 @@
         eliminated: false,
         cashedOut: null,
       }));
-      g.currency       = document.getElementById('setup-currency').value || '£';
+      g.currency       = '$';
       g.startingSB     = parseFloat(document.getElementById('setup-sb').value)       || 25;
       g.startingBB     = parseFloat(document.getElementById('setup-bb').value)       || 50;
       g.levelDuration  = parseInt(document.getElementById('setup-duration').value)   || 20;
@@ -917,7 +913,7 @@
       clearInterval(g.timerInterval);
       setupPlayers = [];
       Object.assign(g, {
-        players: [], currency: '£', startingSB: 25, startingBB: 50,
+        players: [], currency: '$', startingSB: 25, startingBB: 50,
         levelDuration: 20, currentLevel: 0, secondsLeft: 0,
         paused: false, timerInterval: null, rebuyTarget: null, cashOutTarget: null,
       });
